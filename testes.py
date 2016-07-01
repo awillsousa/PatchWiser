@@ -26,58 +26,34 @@ PONTOS = 24
 TAM_PATCH = 64
 N_DIV = 2
 
-diretorio="/home/willian/basesML/bases_cancer/min_treino_2/"
-lista_imagens = arq.busca_arquivos(diretorio, "*.png")
-
-base_teste=""
-base_treino=""
-#r_tst,r_pred = fusao_serie(base_teste, base_treino, ["", ""], metodo)
-
-#converte para escala de cinza
-for arquivo in lista_imagens:
-    img = mh.imread(arquivo)            
-    patches = bp.patches(img, TAM_PATCH, rgb=True)
-    ''' 
-    for p in patches:
-        plt.imshow(p)
-        plt.show()
-    '''        
-    img_cinza = cv2.imread(arquivo, cv2.IMREAD_GRAYSCALE)    
-    img_cinza = bp.limpa_imagem(img_cinza)                    
-    #patches_cinza = bp.cria_patches(img_cinza, TAM_PATCH)        
-    patches_cinza = bp.patches(img_cinza, TAM_PATCH, rgb=False)        
-    
-
-    for p,pg in zip(patches,patches_cinza):
-        plt.imshow(p)
-        plt.show()
-        plt.imshow(pg, 'gray')
-        plt.show()
-
-
-
+def cria_patches(imagens, n_div, rgb=False): 
+    # condicao de parada da recursao    
+    if (n_div == 0):
+        return (imagens);
         
-def cria_patches(imagens, tam, rgb=False):    
     colecao = []
     for imagem in imagens:    
-        l, h = imagem.shape  # retorna largura e altura da imagem
+        if not(rgb):
+            l, h = imagem.shape  # retorna largura e altura da imagem
+        else:
+            l, h = imagem.shape[0]  # retorna largura e altura da imagem
         
-        # calcula as bordas horizontais
-        h_m1 = h % tam
-        h_m2 = h_m1//2
-        h_m1 -= h_m2
-        # calcula das bordas verticais
-        v_m1 = v % tam
-        v_m2 = v_m1//2
-        v_m1 -= v_m2
+        # calcula os valores medios
+        h_m = h//2
+        l_m = l//2
         
-        # divide a imagem passada em patches        
-        for i in range(v_m1, v - v_m2, tam):
-            for j in range(h_m1, h - h_m2, tam):
-                m = np.copy(imagem[i:i+tam,j:j+tam])
-                colecao.append(m)            
-
-    return (colecao)    
+        # divide a imagem passada em 4 patches
+        m = np.copy(imagem[:l_m,:h_m])                
+        colecao.append(m)            
+        m = np.copy(imagem[l_m+1:,:h_m])                
+        colecao.append(m)            
+        m = np.copy(imagem[:l_m,h_m+1:])                
+        colecao.append(m)            
+        m = np.copy(imagem[l_m+1:,h_m+1:])                
+        colecao.append(m)            
+        
+    n_div -= 1
+    return (cria_patches(colecao, n_div, rgb))    
 
 
 
@@ -138,31 +114,51 @@ def extrai(lista_imgs, extrator, tam_patch=32, descarta=False):
         
     return (atributos,rotulos)    
 
+diretorio="/home/willian/basesML/bases_cancer/min_treino_2/"
+lista_imagens = arq.busca_arquivos(diretorio, "*.png")
 
+base_teste=""
+base_treino=""
+#r_tst,r_pred = fusao_serie(base_teste, base_treino, ["", ""], metodo)
 
+#converte para escala de cinza
+for arquivo in lista_imagens:
+    img = mh.imread(arquivo)            
+    
+    #patches = bp.patches(img, TAM_PATCH, rgb=True)
+    img_cinza = cv2.imread(arquivo, cv2.IMREAD_GRAYSCALE)    
+    #img_cinza = bp.limpa_imagem(img_cinza)                    
+    #patches_cinza = bp.cria_patches(img_cinza, TAM_PATCH)        
+    #patches_cinza = bp.patches(img_cinza, TAM_PATCH, rgb=False)        
+    
+    '''
+    for p,pg in zip(patches,patches_cinza):
+        plt.imshow(p)
+        plt.show()
+        plt.imshow(pg, 'gray')
+        plt.show()
+    ''' 
+    # exibe a imagem original
+    plt.imshow(img_cinza, 'gray')    
+    n_div = 3
+    patches = cria_patches([img_cinza], n_div)
+    x = int(math.sqrt(4**n_div))
+    y = x 
+    #p = patches.ravel()
+    fig,axes = plt.subplots(x,y, figsize=(16,16)) 
+    #fig.subplots_adjust(hspace=.5) 
+    
+    for i, ax in enumerate(axes.ravel()):          
+        im = ax.imshow(patches[i],'gray')         
+    
+    #plt.show()
+    
+        
+        
+        
+    
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        
 
 
 
