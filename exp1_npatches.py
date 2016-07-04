@@ -18,15 +18,32 @@ import mahotas as mh
 import math
 import cv2
 import matplotlib.pyplot as plt
+from sklearn.datasets import dump_svmlight_file
+from sklearn.datasets import load_svmlight_file
+from sklearn.metrics import confusion_matrix
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 
 
-LIMIAR_DIVERGENCIA=0.2
-CLASSES = {'B':0, 'M':1}
-SUBCLASSES = {'A':0, 'F':1, 'TA':2, 'PT':3, 'DC':4, 'LC':5, 'MC':6, 'PC':7}    
-RAIO = 3
-PONTOS = 24
-TAM_PATCH = 64
+# Constantes
+LIMIAR_DIVERGENCIA=0.25
 N_DIV = 2
+SVM_C = 32
+SVM_G = 0.5
+CLFS = {'knn':('KNN', KNeighborsClassifier(1)), 
+        'svm':('SVM', SVC(gamma=0.5, C=32)),
+        'dt':('Árvore de Decisão', DecisionTreeClassifier(max_depth=5)),
+        'qda':('QDA', QuadraticDiscriminantAnalysis())}
+
+def get_clf(nome_clf):
+    c = CLFS[nome_clf]    
+    return (c[1])
+
+def get_desc_clf(nome_clf):
+    c = CLFS[nome_clf]     
+    return (c[0])
 
 def cria_patches(imagens, n_div, rgb=False): 
     # condicao de parada da recursao    
@@ -56,30 +73,224 @@ def cria_patches(imagens, n_div, rgb=False):
             m = np.copy(imagem[l_m:,h_m:])                
             colecao.append(m)                    
         else:
-            l, h = imagem.shape[0]  # retorna largura e altura da imagem
+            l, h, _ = imagem.shape  # retorna largura e altura da imagem
+            # calcula os valores medios
+            h_m = int(math.ceil(h/2))             
+            l_m = int(math.ceil(l/2))   
+            #print ("l_m, h_m: ", str((l_m, h_m)))
+            # divide a imagem passada em 4 patches        
+            # patch 0,0            
+            m = np.copy(imagem[:l_m:,:h_m:])                
+            colecao.append(m)                    
+            # patch 1,0            
+            m = np.copy(imagem[:l_m:,h_m::])                
+            colecao.append(m)                    
+            # patch 0,1        
+            m = np.copy(imagem[l_m::,:h_m:])                
+            colecao.append(m)                    
+            # patch 1,1
+            m = np.copy(imagem[l_m::,h_m::])                
+            colecao.append(m)
             
     n_div -= 1
     return (cria_patches(colecao, n_div, rgb))    
 
+def cria_patches2(imagens, n_div, rgb=False): 
+    # condicao de parada da recursao    
+    if (n_div == 0):
+        return (imagens);
+        
+    colecao = []
+    for imagem in imagens:    
+        if not(rgb):
+            l, h = imagem.shape  # retorna largura e altura da imagem
+        
+            # calcula os valores medios
+            h_m = int(math.ceil(h/2))             
+            l_m = int(math.ceil(l/2))
+            print ("l_m, h_m: ", str((l_m, h_m)))
+            # divide a imagem passada em 4 patches        
+            # patch 0,0            
+            m = np.copy(imagem[:l_m,:h_m])                
+            colecao.append(m)                    
+            # patch 1,0            
+            m = np.copy(imagem[:l_m,h_m:])                
+            colecao.append(m)                    
+            # patch 0,1        
+            m = np.copy(imagem[l_m:,:h_m])                
+            colecao.append(m)                    
+            # patch 1,1
+            m = np.copy(imagem[l_m:,h_m:])                
+            colecao.append(m)                    
+        else:
+            l, h, _ = imagem.shape  # retorna largura e altura da imagem
+            # calcula os valores medios
+            h_m = int(math.ceil(h/2))             
+            l_m = int(math.ceil(l/2))   
+            #print ("l_m, h_m: ", str((l_m, h_m)))
+            # divide a imagem passada em 4 patches        
+            # patch 0,0            
+            m = np.copy(imagem[:l_m:,:h_m:])                
+            colecao.append(m)                    
+            # patch 1,0            
+            m = np.copy(imagem[:l_m:,h_m::])                
+            colecao.append(m)                    
+            # patch 0,1        
+            m = np.copy(imagem[l_m::,:h_m:])                
+            colecao.append(m)                    
+            # patch 1,1
+            m = np.copy(imagem[l_m::,h_m::])                
+            colecao.append(m)
+            
+    n_div -= 1
+    return (cria_patches(colecao, n_div, rgb)) 
 
+'''
+Utilizado para testar a funcao de criacao de patches
+'''
+def exibe_cria_patches(lista_imagens):
+    #converte para escala de cinza
+    for arquivo in lista_imagens:
+        img = mh.imread(arquivo)            
+        
+        #patches = bp.patches(img, TAM_PATCH, rgb=True)
+        img_cinza = cv2.imread(arquivo, cv2.IMREAD_GRAYSCALE)    
+        #img_cinza = bp.limpa_imagem(img_cinza)                    
+        #patches_cinza = bp.cria_patches(img_cinza, TAM_PATCH)        
+        #patches_cinza = bp.patches(img_cinza, TAM_PATCH, rgb=False)        
+        
+        
+        # exibe a imagem original    
+        plt.imshow(img)        
+        patches = [img]
+        for n_div in range(1,2):        
+            patches = cria_patches(patches, 1, rgb=True)
+            print("Total de patches: %f", len(patches))
+            print("Tamanho do patch: %i", patches[0].shape)
+                    
+            y = int(math.sqrt(4**n_div))
+            x = y 
+            
+            #fig,axes = plt.subplots(x,y, figsize=(32,32))          
+            fig,axes = plt.subplots(x,y) 
+            for i, ax in enumerate(axes.ravel()): 
+                ax.xaxis.set_major_formatter(plt.NullFormatter())
+                ax.yaxis.set_major_formatter(plt.NullFormatter())
+                im = ax.imshow(patches[i],'gray')         
+            plt.show()    
 
-def div_patches(img, num, rgb=False):
-    img = np.asarray(img)     
-    window_size = (tam,tam) if not(rgb) else (tam,tam,3)
-    windows = sw.sliding_window_nd(img, window_size)  
+def classifica(base, base_tr, id_clf, n, svm_c=SVM_C, svm_g=SVM_G):
+    inicio = time()
     
-    return (windows)
+    # Extrai os atributos da base passada
+    lista_imagens = arq.busca_arquivos(base, "*.png")
+    
+    # Carrega a base de treinamento   
+    print("Carregando base de treinamento...")     
+    atrib_tr, rotulos_tr = load_svmlight_file(base_tr)
+    
+    #inicio = exibe_tempo(inicio)     
+    
+    # Para o classificador QDA deve-se usar uma matriz densa
+    if id_clf == "qda":    
+        atrib_tr = atrib_tr.toarray()  
+    
+    # Treina o classificador passado
+    clf = get_clf(id_clf)    
+    clf.fit(atrib_tr, rotulos_tr)
+        
+    rotulos_ts = []
+    rotulos_pred = []
+    # classifica as imagens uma a uma    
+    for imagem in lista_imagens:
+        # recupera o rotulo real da imagem (total)
+        classe, _ = ex.classe_arquivo(imagem)                
+        rotulos_ts.append(ex.CLASSES[classe])
+        
+        # extrai os patches da imagem
+        print("Extraindo patches da imagem " + imagem)        
+        atrib_vl, rotulos_vl = extrai([imagem], n)
+        
+        #inicio = exibe_tempo(inicio)         
+        
+        if len(atrib_vl) > 0:
+            # Para o classificador QDA deve-se usar uma matriz densa
+            if id_clf == "qda":    
+                atrib_vl = np.asarray(atrib_vl)
+            
+            print("Predizendo classe da imagem")
+            # predicao do classificador para o conjunto de patches        
+            ls_preds = clf.predict(atrib_vl) 
+            #ls_preds = np.asarray(ls_preds, dtype='uint32')                        
+            ls_preds = np.asarray(ls_preds, dtype='int32')                        
+            conta = np.bincount(ls_preds)
+            #print('conta ' + str(conta))
+            rotulos_pred.append(np.argmax(conta))
+            
+            #inicio = exibe_tempo(inicio) 
+    
+    
+    return (rotulos_ts, rotulos_pred)
 
+def classifica2(base, atrib_tr, rotulos_tr, id_clf, n, svm_c=SVM_C, svm_g=SVM_G):
+    inicio = time()
+    
+    # Extrai os atributos da base passada
+    lista_imagens = arq.busca_arquivos(base, "*.png")
+    
+    # Carrega a base de treinamento   
+    print("Carregando base de treinamento...")     
+    atrib_tr, rotulos_tr = load_svmlight_file(base_tr)
+    
+    #inicio = exibe_tempo(inicio)     
+    
+    # Para o classificador QDA deve-se usar uma matriz densa
+    if id_clf == "qda":    
+        atrib_tr = atrib_tr.toarray()  
+    
+    # Treina o classificador passado
+    clf = get_clf(id_clf)    
+    clf.fit(atrib_tr, rotulos_tr)
+        
+    rotulos_ts = []
+    rotulos_pred = []
+    # classifica as imagens uma a uma    
+    for imagem in lista_imagens:
+        # recupera o rotulo real da imagem (total)
+        classe, _ = ex.classe_arquivo(imagem)                
+        rotulos_ts.append(ex.CLASSES[classe])
+        
+        # extrai os patches da imagem
+        print("Extraindo patches da imagem " + imagem)        
+        atrib_vl, rotulos_vl = extrai([imagem], n)
+        
+        #inicio = exibe_tempo(inicio)         
+        
+        if len(atrib_vl) > 0:
+            # Para o classificador QDA deve-se usar uma matriz densa
+            if id_clf == "qda":    
+                atrib_vl = np.asarray(atrib_vl)
+            
+            print("Predizendo classe da imagem")
+            # predicao do classificador para o conjunto de patches        
+            ls_preds = clf.predict(atrib_vl) 
+            #ls_preds = np.asarray(ls_preds, dtype='uint32')                        
+            ls_preds = np.asarray(ls_preds, dtype='int32')                        
+            conta = np.bincount(ls_preds)
+            #print('conta ' + str(conta))
+            rotulos_pred.append(np.argmax(conta))
+            
+    inicio = exibe_tempo(inicio, "CLASSIFICACAO para " + str(4**n) + " patches") 
+    
+    
+    return (rotulos_ts, rotulos_pred)
 
-def pftas(patch):
-   return (mh.features.pftas(patch)) 
-   
    
 '''
 Para cada imagem da lista de imagens passada, divide a imagem em patches
 e para cada patch aplica um extrator de descritor de textura 
 '''
-def extrai(lista_imgs, extrator, tam_patch=32, descarta=False):
+def extrai(lista_imgs, n_div, descarta=False):
     atributos = []    
     rotulos = []    
     ref = ex.patch_referencia()
@@ -92,241 +303,256 @@ def extrai(lista_imgs, extrator, tam_patch=32, descarta=False):
                 
         #converte para escala de cinza
         img = mh.imread(arquivo)            
-        patches = bp.patches(img, TAM_PATCH, rgb=True)
+        patches = cria_patches([img], n_div, rgb=True)
                         
         if (descarta):
             img_cinza = cv2.imread(arquivo, cv2.IMREAD_GRAYSCALE)    
             img_cinza = bp.limpa_imagem(img_cinza)                    
-            patches_cinza = bp.cria_patches(img_cinza, TAM_PATCH)
+            patches_cinza = cria_patches([img_cinza], n_div)
         
         # calcula o histograma de cada um dos patches    
-        for i in range(patches.shape[0]):
-            patch = patches[i]
+        for i, patch in enumerate(patches):
             if (descarta): 
                 lbp_patch = bp.aplica_lbp(patches_cinza[i])
                 hist = bp.histograma(lbp_patch)                  
                 dist = bp.distancia_histograma(hist, hist_ref)  
                 if (dist > LIMIAR_DIVERGENCIA): 
-                    p_pftas = extrator(patch)            
+                    p_pftas = mh.features.pftas(patch)            
                     atributos.append(p_pftas)  
-                    rotulos.append(CLASSES[classe])
+                    rotulos.append(ex.CLASSES[classe])
                 else:
                     dist = str("Distância: " + '{:f}'.format(dist)) 
                     descartados.append((patch, dist))
             else:                
-                    p_pftas = extrator(patch)           
+                    p_pftas = mh.features.pftas(patch)           
                     atributos.append(p_pftas)  
-                    rotulos.append(CLASSES[classe])                             
+                    rotulos.append(ex.CLASSES[classe])                             
         
     return (atributos,rotulos)    
-
-# Inicia contagem do tempo de execução
-inicio = time()
-
-diretorio="/home/willian/basesML/bases_cancer/min_treino_2/"
-lista_imagens = arq.busca_arquivos(diretorio, "*.png")
-
-base_teste=""
-base_treino=""
-#r_tst,r_pred = fusao_serie(base_teste, base_treino, ["", ""], metodo)
-
-#converte para escala de cinza
-for arquivo in lista_imagens:
-    img = mh.imread(arquivo)            
     
-    #patches = bp.patches(img, TAM_PATCH, rgb=True)
-    img_cinza = cv2.imread(arquivo, cv2.IMREAD_GRAYSCALE)    
-    #img_cinza = bp.limpa_imagem(img_cinza)                    
-    #patches_cinza = bp.cria_patches(img_cinza, TAM_PATCH)        
-    #patches_cinza = bp.patches(img_cinza, TAM_PATCH, rgb=False)        
+def extrai2(img, classe, n_div=1):
+    atributos = []    
+    rotulos = []    
     
-    '''
-    for p,pg in zip(patches,patches_cinza):
-        plt.imshow(p)
-        plt.show()
-        plt.imshow(pg, 'gray')
-        plt.show()
-    ''' 
-    # exibe a imagem original    
-    plt.imshow(img_cinza, 'gray')        
-    
-    for n_div in range(1,3):        
-        patches = cria_patches([img_cinza], n_div)
-        print("Total de patches: %f", len(patches))
-        print("Tamanho do patch: %i", patches[0].shape)
-                
-        y = int(math.sqrt(4**n_div))
-        x = y 
         
-        #fig,axes = plt.subplots(x,y, figsize=(32,32))          
-        fig,axes = plt.subplots(x,y) 
-        for i, ax in enumerate(axes.ravel()): 
-            ax.xaxis.set_major_formatter(plt.NullFormatter())
-            ax.yaxis.set_major_formatter(plt.NullFormatter())
-            im = ax.imshow(patches[i],'gray')         
-        plt.show()    
-        
+    patches = cria_patches([img], n_div, rgb=True)
     
-# Encerramento e contagem de tempo de execucao
-print ("Tempo total de execução: " +str(round(time() - inicio, 3)))        
-       
+    # calcula o histograma de cada um dos patches    
+    for i, patch in enumerate(patches):
+        p_pftas = mh.features.pftas(patch)           
+        atributos.append(p_pftas)  
+        rotulos.append(ex.CLASSES[classe])                             
+
+    return (atributos,rotulos, patches)
+    
+def exibe_tempo(inicio, desc=""):
+    fim = round(time() - inicio, 3)
+    print ("Tempo total de execução ["+desc+"]: " +str(fim))
+    
+    return(time())     
+        
   
+# Inicia contagem do tempo de execução
+inicio1 = time()
+
+diretorio="/home/willian/basesML/bases_cancer/fold1/treino/"
+#diretorio="/home/willian/basesML/bases_cancer/min_treino2/"
+base_teste="/home/willian/basesML/bases_cancer/min_teste2/"
+
+lista_imagens = arq.busca_arquivos(diretorio, "*.png")
+n_imgs_treino = len(lista_imagens)
+
+
+
+#base_treino=""
+
+tamanhos = []
+taxas = []
+matrizes = []
+classfs = ["dt", "svm"]
+
+total_n = 4
+
+atributos = {}      # dicionario de atributos por qtd de patches
+rotulos = {}        # dicionario de rotulos por qtd de patches
+arqs_treino = {}    # dicionario de arquivos de treino por qtd de patches
+
+for n in range(0,total_n):        
+    atributos[n] = []    
+    rotulos[n] = []     
+    arq_saida = diretorio + "base_PFTAS_"+str(n)+"_divs.svm" 
+    arqs_treino[n] = arq_saida
+
+##  INICIO DO PROCESSO DE EXTRACAO DE ATRIBUTOS    
 '''
-qt_desc = len(descartados)
-x = int(math.sqrt(qt_desc) + 1)
-y = int(qt_desc/x)
-#fig,axes = plt.subplots(x,y, figsize=(16,16)) 
-fig,axes = plt.subplots(x,y, figsize=(16,16)) 
-fig.subplots_adjust(hspace=.5) 
-conta = 0 
-for i, ax in enumerate(axes.ravel()):  
-    if i < qt_desc:
-        conta += 1
-        im = ax.imshow(descartados[i][0],'gray') 
-        ax.set_title(descartados[i][1])
-        if (conta % 10) == 0:
-            plt.savefig("descartados_" + str(conta) + ".png")
-            fig,axes = plt.subplots(10,10, figsize=(16,16))
-            fig.subplots_adjust(hspace=.5)
-           
-#plt.savefig("descartados.png")
-#plt.show()
-'''
-
-
-
-
-
-'''
-diretorio="/home/willian/basesML/bases_cancer/treino/"
-extratores=['lbp', 'glcm', 'pftas']
-padrao='*.png'
-
-lista_imagens = arq.busca_arquivos(diretorio, padrao)
-
-
-
-for extrator in extratores:
-
-    if (extrator == 'lbp'):
-        caracteristicas, rotulos = ex.extrai_lbp(lista_imagens)
-        arq_saida = diretorio + "base_LBP.svm"          
-    elif (extrator == 'pftas'):
-        caracteristicas, rotulos = ex.extrai_pftas(lista_imagens)  
-        arq_saida = diretorio + "base_PFTAS.svm"
-    elif (extrator == 'glcm'):
-        caracteristicas, rotulos = ex.extrai_haralick(lista_imagens) 
-        arq_saida = diretorio + "base_GLCM.svm"                 
+for arq_imagem in lista_imagens:
+    imagem = mh.imread(arq_imagem)
+    classe, _ = ex.classe_arquivo(arq_imagem)
+    
+    # Extrai os atributos e gera os arquivos dos patches da base de treino
+    atrs,rots,patches = extrai2(imagem, classe, 0)    
+    atributos_img = atributos.get(0)
+    atributos_img += atrs     
+    rotulos_img = rotulos.get(0)
+    rotulos_img += rots
+    
+    # Executa para todos os tamanhos de patches e acumula as listas de atributos
+    # e os rotulos de cada um dos patches gerados
+    # A vantagem desse metodo é realizar apenas uma leitura em disco e evitar 
+    # excesso de overhead ao dividir a imagem em imagens menores (patches)
+    # pois ja divide a imagem e extrai atributos para todos os tamanhos de patches
+    for n in range(1, total_n): 
+        novos_patches = []
+                           
+        for img in patches:         
+            atrs, rots, p = extrai2(img, classe)  
+            atributos_img = atributos.get(n)
+            atributos_img += atrs     
+            rotulos_img = rotulos.get(n)
+            rotulos_img += rots
+            
+            novos_patches += p
         
-    dump_svmlight_file(caracteristicas, rotulos, arq_saida)        
-'''   
-
-"""
-TAS and PFTAS: TAS (Threshold Adjacency Statistics) were presented by Hamilton et al. in 2007 [1]. Originally, TAS was proposed as a ”simple and fast morphological measure for distinguishing sub-cellular localization” [20, p.8]. One variation is do not use hardcoded parameters in threshold value, but compute it using an algorithm such as Otsu’s method. This alternative approach, named PFTAS (Parameter Free-TAS), was first published by Coelho et al. in 2010 [2].
-
-  [1] N. A. Hamilton, R. S. Pantelic, K. Hanson, and R. D. Teasdale, “Fast automated cell phenotype image classification,” BMC Bioinformatics, vol. 8, 2007. [Online]. Available: http://www.biomedcentral.com/
-1471-2105/8/110
-
-  [2] L. P. Coelho, A. Ahmed, A. Arnold, J. Kangas, A.-S. Sheikh, E. P. Xing, W. W. Cohen, and R. F. Murphy, “Structured literature image finder: extracting information from text and images in biomedical literature,” in
-Linking Literature, Information, and Knowledge for Biology, ser. Lecture Notes in Computer Science, C. Blaschke and H. Shatkay, Eds. Springer Berlin Heidelberg, 2010, vol. 6004, pp. 23–32.
-
-
-"""
-
-
+        patches = novos_patches
+    
+for n in range(0, total_n):             
+    dump_svmlight_file(atributos.get(n), rotulos.get(n), arqs_treino.get(n))
+    atributos[n] = []    
+    rotulos[n] = []
 '''
-def mTAS(img1):
+inicio = exibe_tempo(inicio1, "EXTRACAO")
 
-    #img_g = img[:, :, 0]  # grayscale. It is good enough?
-
-    # convert to grayscale using OpenCV
-    #img_g = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-
-    img_g = img1
-    thresh = 30
-    margin = 30
-    total = np.sum(img_g > thresh)
-    mu = ((img_g > thresh)*img_g).sum() / (total + 1e-8)
-
-    print ('total:%f' % total)
-    print ('mu:%f' % mu)
-    print ('mu+30:%f' % (mu+30))
-
-    ret, mu1 = cv2.threshold(img_g, (mu-margin), (mu+margin), cv2.THRESH_BINARY)
-    ret, mu2 = cv2.threshold(img_g, mu-margin, 255, cv2.THRESH_BINARY)
-    ret, mu3 = cv2.threshold(img_g, mu, 255, cv2.THRESH_BINARY)
-
-    mu1 = (img_g > mu - margin) * (img_g < mu + margin)
-    mu2 = img_g > mu - margin
-    mu3 = img_g > mu
-
-    #'original converted to grayscale'
-    titles = ['original image', r'$\mu-30$ to $\mu+30$', r'$\mu-30$ to $255$', r'$\mu$ to $255$']
-    images = [img_g, mu1, mu2, mu3]
-
-    #plt.imshow(img_g, 'gray')
-    #plt.show()
-
-    plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.02, hspace=0.02)
-
-    for i in range(4):
-        plt.subplot(2, 2, i+1)
-        plt.imshow(images[i], 'gray')
-        plt.title(titles[i])
-        plt.xticks([])
-        plt.yticks([])
-
-    plt.show()
-
-    #PFTAS
-
-    T = mh.otsu(img_g)
-    pixels = img_g[img_g > T].ravel()  #  pixels becames a flattened array
-
-    if len(pixels) == 0:
-        std = 0
-    else:
-        std = pixels.std()
-
-    thresh = T
-    margin = std
+## FIM DO PROCESSO DE EXTRACAO DE ATRIBUTOS
 
 
-    total = np.sum(img_g > thresh)
-    mu = ((img_g > thresh)*img_g).sum() / (total + 1e-8)
+## INICIO DO PROCESSO DE CLASSIFICACAO
+# Processo de classificacao
+print("Classificando a base de testes...")    
 
-    print ('total:%f' % total)
-    print ('mu:%f' % mu)
-    print ('sigma:%f' % std)
+# Busca a lista dos arquivos da base de testes
+lista_imagens = arq.busca_arquivos(base_teste, "*.png")
+    
+for n in range(0, total_n):        
+    # Carrega a base de treinamento   
+    base_tr = arqs_treino.get(n)
+    atrib_tr = None
+    rotulos_tr = None    
+    atrib_tr, rotulos_tr = load_svmlight_file(base_tr)
+    
+    # Classifica a base de testes
+    for c in classfs:
+        inicio = time()           
+        print("Classificando para " + c + " com " + str(4**n) + " patches")
+                
+        r_tst,r_pred = classifica2(base_teste, atrib_tr, rotulos_tr, c, n)
+        
+        # cria as matrizes de confusao
+        cm = confusion_matrix(r_tst, r_pred)
+        print("Matriz de confusao: ")
+        print (cm) 
+        
+        # exibe a taxa de classificacao
+        r_pred = np.asarray(r_pred)
+        r_tst = np.asarray(r_tst)
+        taxa_clf = np.mean(r_pred.ravel() == r_tst.ravel()) * 100
+        print("Taxa de Classificação: %f " % (taxa_clf))     
+        
+        # armazena os resultados
+        tamanhos.append(4**n)
+        taxas.append(taxa_clf)
 
-    ret, mu1 = cv2.threshold(img_g, (mu-margin), (mu+margin), cv2.THRESH_BINARY)
-    ret, mu2 = cv2.threshold(img_g, mu-margin, 255, cv2.THRESH_BINARY)
-    ret, mu3 = cv2.threshold(img_g, mu, 255, cv2.THRESH_BINARY)
+        matrizes.append(cm)    
+        inicio = exibe_tempo(inicio, "CLASSIFICACAO")
+    
+    
+## FIM DO PROCESSO DE CLASSIFICACAO
 
-    mu1 = (img_g > mu - margin) * (img_g < mu + margin)
-    mu2 = img_g > mu - margin
-    mu3 = img_g > mu
+# exibe os dados obtidos
+for t,tx in zip(tamanhos,taxas):
+    print("Tamanho: " + str(t) + " Taxa Reconhecimento: " + str(tx))        
+    
+# plota grafico de resultados    
+plt.plot(tamanhos, taxas)
+plt.ylabel('taxa de reconhecimento')
+plt.xlabel('qtd de patches')
+plt.show()            
 
-    # 'original converted to grayscale'
-    titles = ['original image', r'$\mu-\sigma$ to $\mu+\sigma$', r'$\mu-\sigma$ to $255$', r'$\mu$ to $255$']
-    images = [img_g, mu1, mu2, mu3]
+# Encerramento e contagem de tempo de execucao
+print("ENCERRAMENTO DO PROGRAMA \n\n")
+inicio = exibe_tempo(inicio1)      
+    
+ 
 
-    plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.02, hspace=0.02)
-    for i in range(4):
-        plt.subplot(2, 2, i+1)
-        plt.imshow(images[i], 'gray')
-        plt.title(titles[i])
-        plt.xticks([])
-        plt.yticks([])
-
-    plt.show()
-
-f1 = lista_imagens[0]
-img = mh.imread(f1)
-mTAS(img) 
+            
 '''
-    # patch de referencia            
-    #if len(ref)==0:
-    #    patch_branco = np.full([TAM_PATCH,TAM_PATCH], 255, dtype=np.uint8)    
-    #    ref = bp.histograma(bp.aplica_lbp(patch_branco)) 
-    #        
+CLASSIFICACAO E EXTRACAO FUNCIONANDO, MAS AINDA LENTO
+main():
+    # Inicia contagem do tempo de execução
+    inicio1 = time()
+    
+    diretorio="/home/willian/basesML/bases_cancer/min_treino/"
+    base_teste="/home/willian/basesML/bases_cancer/min_teste/"
+    
+    lista_imagens = arq.busca_arquivos(diretorio, "*.png")
+    
+    
+    #base_treino=""
+    arqs_treino = []
+    tamanhos = []
+    taxas = []
+    matrizes = []
+    classfs = ["dt", "svm"]
+    
+    
+    for n in range(0,4):  
+        print("Extraindo atributos da base de treino para " + str(4**n) + " patches")
+        # Extrai os atributos e gera os arquivos dos patches da base de treina
+        atributos, rotulos, lista_imagens = extrai(lista_imagens, n)  
+        arq_saida = diretorio + "base_PFTAS_"+str(2*n)+"x"+str(2*n)+".svm" 
+        arqs_treino.append(arq_saida)    
+        dump_svmlight_file(atributos, rotulos, arq_saida)
+    
+        inicio = exibe_tempo(inicio1) 
+        
+        print("Classificando a base de testes...")    
+        # Classifica a base de testes
+        for c in classfs:           
+            print("Classificando para " + c + " com " + str(4**n) + " patches")
+                    
+            r_tst,r_pred = classifica(base_teste, arq_saida, c, n)
+            
+            inicio = exibe_tempo(inicio)
+    
+            # cria as matrizes de confusao
+            cm = confusion_matrix(r_tst, r_pred)
+            print("Matriz de confusao: ")
+            print (cm) 
+            
+            # exibe a taxa de classificacao
+            r_pred = np.asarray(r_pred)
+            r_tst = np.asarray(r_tst)
+            taxa_clf = np.mean(r_pred.ravel() == r_tst.ravel()) * 100
+            print("Taxa de Classificação: %f " % (taxa_clf))     
+            
+            # armazena os resultados
+            tamanhos.append(4**n)
+            taxas.append(taxa_clf)
+            matrizes.append(cm)    
+    
+    
+    # exibe os dados obtidos
+    for t,tx in zip(tamanhos,taxas):
+        print("Tamanho: " + str(t) + " Taxa Reconhecimento: " + str(tx))        
+        
+    # plota grafico de resultados    
+    plt.plot(tamanhos, taxas)
+    plt.ylabel('taxa de reconhecimento')
+    plt.xlabel('qtd de patches')
+    plt.show()            
+    
+    # Encerramento e contagem de tempo de execucao
+    print("ENCERRAMENTO DO PROGRAMA \n\n")
+    inicio = exibe_tempo(inicio1)   
+'''
+
+# Programa principal
