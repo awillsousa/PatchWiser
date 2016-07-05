@@ -357,7 +357,8 @@ inicio1 = time()
 
 diretorio="/home/willian/basesML/bases_cancer/fold1/treino/"
 #diretorio="/home/willian/basesML/bases_cancer/min_treino2/"
-base_teste="/home/willian/basesML/bases_cancer/min_teste2/"
+#base_teste="/home/willian/basesML/bases_cancer/min_teste2/"
+base_teste="/home/willian/basesML/bases_cancer/fold1/teste/"
 
 lista_imagens = arq.busca_arquivos(diretorio, "*.png")
 n_imgs_treino = len(lista_imagens)
