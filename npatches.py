@@ -577,7 +577,8 @@ def executa_classificacao_n(base_teste, base_treino, n=1):
     plt.plot(tamanhos, taxas)
     plt.ylabel('taxa de reconhecimento')
     plt.xlabel('qtd de patches')
-    plt.show()    
+    plt.savefig(base_treino + 'base_PFTAS_'+str(n)+'_divs.pdf', bbox_inches='tight')
+    #plt.show()    
 
 ###############################################################################   
         
