@@ -48,7 +48,7 @@ FUSAO = ['voto', 'soma', 'produto', 'serie']
 hoje = datetime.datetime.today()
 formato = "%a-%b-%d-%H_%M_%S"
 arq_log = hoje.strftime(formato)+".log"
-logfile = open("c:\\Temp\\npatches-"+arq_log, "w")
+logfile = open("npatches-"+arq_log, "w")
 
 
 '''
@@ -201,6 +201,10 @@ def exibe_cria_patches(lista_imagens, n_divs=2):
                 im = ax.imshow(patches[i],'gray')         
             plt.show()    
 
+'''
+## METODO DE CLASSIFICACAO UTILIZANDO NO TRABALHO DE CANCER
+## CONSIDERA DESCARTE E FOI FEITO PARA REALIZAR A CLASSIFICACAO
+## UTILIZANDO PATCHES COM ESQUEMA DE JANELA DESLIZANTE. 
 def classifica(base, base_tr, id_clf, n, svm_c=SVM_C, svm_g=SVM_G):
     
     # Extrai os atributos da base passada
@@ -244,8 +248,12 @@ def classifica(base, base_tr, id_clf, n, svm_c=SVM_C, svm_g=SVM_G):
             rotulos_pred.append(np.argmax(conta))
             
     return (rotulos_ts, rotulos_pred)
+'''
 
-def classifica2(base, atrib_tr, rotulos_tr, id_clf, n, svm_c=SVM_C, svm_g=SVM_G):
+'''
+Executa a classificacao de uma base de imagens 
+'''
+def classifica(base, atrib_tr, rotulos_tr, id_clf, n, svm_c=SVM_C, svm_g=SVM_G):
     
     # Extrai os atributos da base passada
     lista_imagens = arq.busca_arquivos(base, "*.png")
@@ -267,7 +275,7 @@ def classifica2(base, atrib_tr, rotulos_tr, id_clf, n, svm_c=SVM_C, svm_g=SVM_G)
         rotulos_ts.append(ex.CLASSES[classe])
         
         # extrai os patches da imagem
-        print("Extraindo patches da imagem " + imagem)        
+        log("Extraindo patches da imagem " + imagem)        
         atrib_vl, rotulos_vl = extrai([imagem], n)
         
         if len(atrib_vl) > 0:
@@ -275,15 +283,16 @@ def classifica2(base, atrib_tr, rotulos_tr, id_clf, n, svm_c=SVM_C, svm_g=SVM_G)
             if id_clf == "qda":    
                 atrib_vl = np.asarray(atrib_vl)
             
-            print("Predizendo classe da imagem")
+            log("Predizendo classe da imagem")
             # predicao do classificador para o conjunto de patches        
             ls_preds = clf.predict(atrib_vl) 
             #ls_preds = np.asarray(ls_preds, dtype='uint32')                        
             ls_preds = np.asarray(ls_preds, dtype='int32')                        
             conta = np.bincount(ls_preds)
-            #print('conta ' + str(conta))
-            rotulos_pred.append(np.argmax(conta))
-    
+            log('Contagem classes patches: ' + str(conta))
+            cl = np.argmax(conta)
+            rotulos_pred.append(cl)
+            log ('Classe: ' + str(cl))
     return (rotulos_ts, rotulos_pred)
 
    
@@ -430,12 +439,12 @@ def existe_opt (parser, dest):
 Extrai atributos e gera os arquivos da base de treino passado utilizando
 o metodo passado
 '''
-def executa_extracao(base_treino, metodo):
+def executa_extracao(base_treino, metodo, n_divs=6):
     inicio = time()    
     
     lista_imgs_tr = arq.busca_arquivos(base_treino, "*.png")
     n_imgs_treino = len(lista_imgs_tr)
-    extrai_patches_imgs(lista_imgs_tr, base_treino)
+    extrai_patches_imgs(lista_imgs_tr, base_treino, n_divs)
     
     log("Extraidos atributos da base " + base_treino + " utilizando " + metodo + "\n para " + str(n_imgs_treino) + "imagens") 
   
@@ -467,7 +476,7 @@ def executa_classificacao(base_teste, base_treino, total_n=5):
                 inicio = time()           
                 log("Classificando para " + c + " com " + str(4**n) + " patches")
                         
-                r_tst,r_pred = classifica2(base_teste, atrib_tr, rotulos_tr, c, n)
+                r_tst,r_pred = classifica(base_teste, atrib_tr, rotulos_tr, c, n)
                 
                 # cria as matrizes de confusao
                 cm = confusion_matrix(r_tst, r_pred)
@@ -505,8 +514,70 @@ def executa_classificacao(base_teste, base_treino, total_n=5):
     plt.xlabel('qtd de patches')
     plt.show()            
 
+'''
+Executa classificacao da base de testes utilizando uma base de treino
+de imagens que foram diviidas em 4**n patches
+'''    
+def executa_classificacao_n(base_teste, base_treino, n=1):
+    inicio = time()    
     
-  
+    tamanhos = []
+    taxas = []
+    matrizes = []
+    tempos = []
+    classfs = ["dt", "svm"]
+    
+    try:
+        # Carrega a base de treinamento   
+        base_tr = base_treino + "base_PFTAS_"+str(n)+"_divs.svm"
+        atrib_tr = None
+        rotulos_tr = None    
+        atrib_tr, rotulos_tr = load_svmlight_file(base_tr)
+        
+        # Classifica a base de testes
+        for c in classfs:
+            inicio = time()           
+            log("Classificando para " + c + " com " + str(4**n) + " patches")
+                    
+            r_tst,r_pred = classifica(base_teste, atrib_tr, rotulos_tr, c, n)
+            
+            # cria as matrizes de confusao
+            cm = confusion_matrix(r_tst, r_pred)
+            print("Matriz de confusao: ")
+            print (cm) 
+            
+            # exibe a taxa de classificacao
+            r_pred = np.asarray(r_pred)
+            r_tst = np.asarray(r_tst)
+            taxa_clf = np.mean(r_pred.ravel() == r_tst.ravel()) * 100
+            print("Taxa de Classificação: %f " % (taxa_clf))     
+            
+            # armazena os resultados 
+            tamanhos.append(4**n) 
+            taxas.append(taxa_clf) 
+            matrizes.append(cm) 
+            tempos.append(time()-inicio) 
+            inicio = exibe_tempo(inicio, "CLASSIFICACAO") 
+    except:
+        log("ERRO ou PROBLEMA desconhecido no processo de classificação.") 
+        print ("Unexpected error:", sys.exc_info()[0])
+        raise           
+        
+    # Exibe o tempo de execução    
+    log("Tempo: " + str(time()-inicio) + "CLASSIFICACAO para " + str(4**n) + " patches")     
+    
+    ## FIM DO PROCESSO DE CLASSIFICACAO
+    
+    # exibe os dados obtidos
+    for t,tx,mc in zip(tamanhos,taxas,matrizes):
+        log("\nTamanho: " + str(t) + " Taxa Reconhecimento: " + str(tx))        
+        log("Matriz de Confusão: \n" + str(mc))        
+        
+    # plota grafico de resultados [reconhecimento vs tam. patch]
+    plt.plot(tamanhos, taxas)
+    plt.ylabel('taxa de reconhecimento')
+    plt.xlabel('qtd de patches')
+    plt.show()    
 
 ###############################################################################   
         
@@ -601,6 +672,12 @@ def main():
     parser.add_option("-X", "--extrator", dest="opt_ext",
                       default=False,
                       help="Indica se será realizada extração na base de treino.")                                  
+    parser.add_option("-d", "--divs", dest="opt_divs",
+                      default=0,
+                      help="Altura da quadtree de patches geradas.")    
+    parser.add_option("-n", "--n-div", dest="opt_ndiv",
+                      default=0,
+                      help="Número de divisões a ser utilizado como base para classificacao")                             
     
     (options, args) = parser.parse_args()
     
@@ -619,8 +696,18 @@ def main():
        executa_extracao(options.base_treino, options.opt_metodo)
                
     # Se for executar classificacao    
-    if existe_opt(parser, "opt_clf"):    
-        executa_classificacao(options.base_teste, options.base_treino)
+    if existe_opt(parser, "opt_clf"):
+        try: 
+            n_div = int(options.opt_ndiv)
+        except:
+            sys.exit("Erro: Valor inválido para o número de divisões das imagens.")
+            
+        if (n_div == 0):
+            executa_classificacao(options.base_teste, options.base_treino)
+        elif (n_div > 0):
+            executa_classificacao_n(options.base_teste, options.base_treino, n_div)
+        else:
+            sys.exit("Erro: Valor inválido para o número de divisões das imagens.")
 
     # Encerramento e contagem de tempo de execucao
     print("ENCERRAMENTO DO PROGRAMA \n\n")
