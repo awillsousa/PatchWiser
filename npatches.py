@@ -59,9 +59,9 @@ def log(texto):
     print(texto, file=logfile)
     
 
-def get_clf(nome_clf):
+def get_clf(nome_clf): 
     c = CLFS[nome_clf]    
-    return (c[1])
+    return (c[1]) 
 
 def get_desc_clf(nome_clf):
     c = CLFS[nome_clf]     
@@ -447,15 +447,14 @@ def executa_classificacao(base_teste, base_treino, total_n=5):
             base_tr = arqs_treino.get(n) 
             atrib_tr = None 
             rotulos_tr = None             
-            atrib_tr, rotulos_tr = load_svmlight_file(base_tr) 
-            #print (str(atrib_tr.shape))            
-            #print (str(rotulos_tr.shape))            
+            atrib_tr, rotulos_tr = load_svmlight_file(base_tr, dtype=np.float32) 
             
+            '''
             t = int(atrib_tr.shape[0])
             t = t//10            
             atrib_tr = atrib_tr[:t,:] 
             rotulos_tr = rotulos_tr[:t] 
-            
+            '''
             # Classifica a base de testes
             for c in classfs:
                 inicio = time()           
@@ -598,7 +597,7 @@ def executa_classificacao_ns(base_teste, base_treino, n=1):
         base_tr = base_treino + "base_PFTAS_"+str(n)+"_divs.svm"
         atrib_tr = None
         rotulos_tr = None    
-        atrib_tr, rotulos_tr = load_svmlight_file(base_tr)
+        atrib_tr, rotulos_tr = load_svmlight_file(base_tr, dtype=np.float32)
         
         # Classifica a base de testes
         for c in classfs:
@@ -668,9 +667,14 @@ def plota_grafico(dadosX, dadosY, arquivo="grafico.pdf", titulo="", tituloX="X",
     plt.title(titulo)
     
     # set axis limits
-    plt.xlim(0.0, 512.0)
-    plt.ylim(0.0, 130.0)
-    plt.savefig(arquivo, bbox_inches='tight')
+    plt.xlim(0.0, len(dadosX)**4)
+    max_y = max(dadosY)
+    if max_y < 100:
+        max_y = 100
+        
+    plt.ylim(0.0, max_y)
+    #plt.savefig(arquivo, bbox_inches='tight')
+    plt.savefig(arquivo)
     plt.clf()
        
 
