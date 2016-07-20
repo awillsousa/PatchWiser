@@ -17,22 +17,11 @@ diretorio = "/home/willian/basesML/bases_cancer/treino/"
 extratores = ['lbp', 'glcm', 'pftas', 'todos']
 padrao='*.png'
 
-def main(diretorio, extrator='lbp', descarte=False, padrao='*.png'):    
-    lista_imagens = arq.busca_arquivos(diretorio, padrao)
-    
-    if (extrator == 'lbp' or extrator == 'todos'):
-        atributos, rotulos = ex.extrai_lbp(lista_imagens, descarte)
-        arq_saida = diretorio + "D-base_LBP.svm"  
-        dump_svmlight_file(atributos, rotulos, arq_saida)          
-    if (extrator == 'pftas' or extrator == 'todos'):
-        atributos, rotulos = ex.extrai_pftas(lista_imagens, descarte)  
-        arq_saida = diretorio + "D-base_PFTAS.svm" 
-        dump_svmlight_file(atributos, rotulos, arq_saida)     
-    if (extrator == 'glcm' or extrator == 'todos'):
-        atributos, rotulos = ex.extrai_haralick(lista_imagens, descarte)  
-        arq_saida = diretorio + "D-base_GLCM.svm" 
-        dump_svmlight_file(atributos, rotulos, arq_saida)
-    
+def extrai_base_atributos(diretorio, extrator='pftas', padrao='*.png', desc_arquivo='', descarte=False):    
+   
+   atributos, rotulos = ex.extrai_atributos(diretorio, extrator, padrao, descarte)  
+   arq_saida = diretorio + "base_"+extrator+"_"+desc_arquivo+".svm"     
+   dump_svmlight_file(atributos, rotulos, arq_saida)          
 
 '''
 Chamada programa principal
@@ -61,5 +50,5 @@ if __name__ == "__main__":
   else:
       sys.exit("Parametro de descarte de patches incorreto! Utilize -d.")      
         
-  main(arg1, arg2, arg3)
+  extrai_base_atributos(arg1, arg2, arg3)
 

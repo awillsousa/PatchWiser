@@ -8,6 +8,7 @@ Created on Mon May 16 17:17:46 2016
 import numpy as np
 import mahotas as mh
 import binarypattern as bp
+import arquivos as arq
 from skimage.filters import gaussian
 from skimage.feature import local_binary_pattern 
 import cv2 
@@ -203,3 +204,12 @@ def extrai_haralick(lista_imgs, usa_descarte=False):
         
     return (atributos,rotulos)
 
+def extrai_atributos(diretorio, extrator, lista_imgs, padrao="*.png", descarte=False):
+    lista_imagens = arq.busca_arquivos(diretorio, padrao)
+    
+    if (extrator == 'pftas'):
+        atributos, rotulos = extrai_pftas(lista_imagens, descarte)        
+    if (extrator == 'lbp'):
+        atributos, rotulos = extrai_lbp(lista_imagens, descarte)
+    if (extrator == 'glcm'):
+        atributos, rotulos = extrai_haralick(lista_imagens, descarte)  

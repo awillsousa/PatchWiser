@@ -58,15 +58,24 @@ def log(texto):
     print(texto)
     print(texto, file=logfile)
     
-
+'''
+Retorna um classificador (funcao) a ser utilizado
+'''
 def get_clf(nome_clf): 
     c = CLFS[nome_clf]    
     return (c[1]) 
 
+'''
+Retorna a descrição (texto) do classificador
+'''
 def get_desc_clf(nome_clf):
     c = CLFS[nome_clf]     
     return (c[0])
 
+'''
+Recebe uma imagem e divide em n_div**4 patches
+TODO: Melhorar a implementacao
+'''
 def cria_patches(imagens, n_div, rgb=False): 
     # condicao de parada da recursao    
     if (n_div == 0):
@@ -117,6 +126,11 @@ def cria_patches(imagens, n_div, rgb=False):
     n_div -= 1
     return (cria_patches(colecao, n_div, rgb))    
 
+'''
+Recebe uma area e divide a mesma k vezes
+em 4 partes iguais. Retorna o tamanho da menor divisao 
+(0,0,x,y)
+'''
 def divide4(x,y,x0=0,y0=0,k=1):
     if (k == 0):
         return x,y
@@ -128,6 +142,10 @@ def divide4(x,y,x0=0,y0=0,k=1):
     
     return (divide4(x_m, y_m, x0, y0, k))    
 
+'''
+Extrai n_div**4 patches da imagem passada utilizando o metodo de 
+janela deslizante, sem sobreposição.
+'''
 def cria_patches2(imagens, n_div, rgb=False): 
     for imagem in imagens:            
         if (rgb):
@@ -142,18 +160,16 @@ def cria_patches2(imagens, n_div, rgb=False):
         print (windows.shape)
     return (windows)
 
-def cria_patches3(imagem, lado, rgb=False):    
-    from sklearn.feature_extraction import image
-     
-    #l, h,_ = imagem.shape    
+
+'''
+Extrai patches de tamanho fixo da imagem passada utilizando o metodo de
+janela deslizante. 
+'''
+def cria_patches3(imagem, lado, rgb=False):          
     imagem = np.asarray(imagem)     
-    #windows = image.extract_patches_2d(imagem, (lado,lado), max_patches=1000, random_state=0)     
-    windows = image.PatchExtractor((lado, lado)).transform(imagem)    
-    '''    
-    imagem = np.asarray(imagem)     
-    window_size = (lado,lado) if not(rgb) else (lado,lado,3)   
+    window_size = (lado,lado) if not(rgb) else (lado,lado,3)
     windows = sw.sliding_window_nd(imagem, window_size)  
-    '''
+    print (windows.shape)
     return (windows)
 
 
@@ -242,7 +258,7 @@ def classifica(base, atrib_tr, rotulos_tr, id_clf, n, svm_c=SVM_C, svm_g=SVM_G):
 
    
 '''
-Para cada imagem da lista de imagens passada, divide a imagem em patches
+Para cada imagem da lista passada, divide a imagem em patches
 e para cada patch aplica um extrator de descritor de textura 
 '''
 def extrai(lista_imgs, n_div, descarta=False):
@@ -285,7 +301,10 @@ def extrai(lista_imgs, n_div, descarta=False):
                     rotulos.append(ex.CLASSES[classe])                             
         
     return (atributos,rotulos)    
-    
+
+'''
+Gera patches a partir da imagem passada e extrai atributos PFTAS 
+'''    
 def extrai_pftas_patches(img, classe, n_div=1):
     atributos = []    
     rotulos = []
@@ -300,6 +319,9 @@ def extrai_pftas_patches(img, classe, n_div=1):
 
     return (atributos,rotulos, patches)
 
+'''
+Gera a lista de nomes dos arquivos de treino com base na divisão utilizada
+'''
 def gera_arqs_treino(diretorio, n_divs):
     
     arqs_treino = {}    # dicionario de arquivos de treino por qtd de patches
@@ -363,27 +385,6 @@ def extrai_patches_imgs(lista_imagens, diretorio, n_divs=5):
         atributos[n] = []    
         rotulos[n] = []
 
-def extrai_patches_imgs_n(lista_imagens, diretorio, n=5):
-        
-    atributos = []    
-    rotulos = []     
-        
-    arqs_treino = gera_arqs_treino(diretorio, n)    
-    ##  INICIO DO PROCESSO DE EXTRACAO DE ATRIBUTOS    
-    
-    for arq_imagem in lista_imagens:
-        imagem = mh.imread(arq_imagem)
-        classe, _ = ex.classe_arquivo(arq_imagem)
-        
-        # Extrai os atributos e gera os arquivos dos patches da base de treino
-        atrs,rots,patches = extrai_pftas_patches(imagem, classe, n)                            
-        atributos += atrs
-        rotulos += rots
-    
-    dump_svmlight_file(atributos, rotulos, arqs_treino.get(n))
-        
-
-
 '''
 Exibe o tempo passado a partir do inicio passado e retorna o tempo atual
 em uma nova variável
@@ -403,8 +404,7 @@ def existe_opt (parser, dest):
    return False 
 
 '''
-Extrai atributos e gera os arquivos da base de treino passado utilizando
-o metodo passado
+Extrai atributos e gera os arquivos da base de treino 
 '''
 def executa_extracao(base_treino, metodo, n_divs=6):
     inicio = time()    
@@ -418,18 +418,184 @@ def executa_extracao(base_treino, metodo, n_divs=6):
     # Exibe o tempo de execução    
     log(str(time()-inicio) + "EXTRAÇÃO") 
     
+  
+  
+'''
+Extrai atributos dos patches de imagem passada.
+Inicialmente, divide a imagem em patches para em seguida
+aplicar ao método PFTAS
+'''  
+def extrai_pftas_patches_n(img, classe, lado=2):
+    atributos = []    
+    rotulos = []
+        
+    patches = cria_patches3(img, lado, rgb=True)
+    
+    # calcula o histograma de cada um dos patches    
+    for i, patch in enumerate(patches):
+        p_pftas = mh.features.pftas(patch)           
+        atributos.append(p_pftas)  
+        rotulos.append(ex.CLASSES[classe])                             
+    
+    patches = None
+    return (atributos,rotulos)
+  
+'''
+Executa a extracao de atributos de imagens, utilizando patches
+de diversos tamanhos. Inicial 2x2, gerando patches incrementais
+3x3,4x4, até 128x128
+'''    
 def executa_extracao_n(base_treino, metodo, n=1):
     inicio = time()    
     
-    lista_imgs_tr = arq.busca_arquivos(base_treino, "*.png")
-    n_imgs_treino = len(lista_imgs_tr)
-    extrai_patches_imgs_n(lista_imgs_tr, base_treino, n)
+    lista_imagens = arq.busca_arquivos(base_treino, "*.png")
+    n_imgs_treino = len(lista_imagens)
+    
+    for lado in range(8,n+1,4):
+        atributos = []    
+        rotulos = []     
+            
+        arq_treino = base_treino + "base_PFTAS_"+str(lado)+"x"+str(lado)+".svm"
+        ##  INICIO DO PROCESSO DE EXTRACAO DE ATRIBUTOS    
+        
+        for arq_imagem in lista_imagens:
+            imagem = mh.imread(arq_imagem)
+            classe, _ = ex.classe_arquivo(arq_imagem)
+            
+            # Extrai os atributos e gera os arquivos dos patches da base de treino
+            atrs,rots = extrai_pftas_patches_n(imagem, classe, lado)                            
+            atributos += atrs
+            rotulos += rots
+        
+        dump_svmlight_file(atributos, rotulos, arq_treino)
     
     log("Extraidos atributos da base " + base_treino + " utilizando " + metodo + "\n para " + str(n_imgs_treino) + "imagens") 
   
     # Exibe o tempo de execução    
     log(str(time()-inicio) + "EXTRAÇÃO")     
+   
+'''
+Executa a classificacao de uma base de imagens 
+'''
+def classifica_n(base, atrib_tr, rotulos_tr, id_clf, n, svm_c=SVM_C, svm_g=SVM_G):
     
+    # Extrai os atributos da base passada
+    lista_imagens = arq.busca_arquivos(base, "*.png")
+        
+    # Para o classificador QDA deve-se usar uma matriz densa
+    if id_clf == "qda":    
+        atrib_tr = atrib_tr.toarray()  
+    
+    # Treina o classificador passado
+    clf = get_clf(id_clf)    
+    clf.fit(atrib_tr, rotulos_tr)
+        
+    rotulos_ts = []
+    rotulos_pred = []
+    # classifica as imagens uma a uma    
+    for imagem in lista_imagens:
+        # recupera o rotulo real da imagem (total)
+        classe, _ = ex.classe_arquivo(imagem)                
+        rotulos_ts.append(ex.CLASSES[classe])
+        
+        # extrai os patches da imagem
+        log("Extraindo patches da imagem " + imagem)        
+        atrib_vl, rotulos_vl = extrai([imagem], n)
+        
+        
+        if len(atrib_vl) > 0:
+            # Para o classificador QDA deve-se usar uma matriz densa
+            if id_clf == "qda":    
+                atrib_vl = np.asarray(atrib_vl)
+            
+            log("Predizendo classe da imagem")
+            # predicao do classificador para o conjunto de patches        
+            ls_preds = clf.predict(atrib_vl) 
+            #ls_preds = np.asarray(ls_preds, dtype='uint32')                        
+            ls_preds = np.asarray(ls_preds, dtype='int32')                        
+            conta = np.bincount(ls_preds)
+            log('Contagem classes patches: ' + str(conta))
+            cl = np.argmax(conta)
+            rotulos_pred.append(cl)
+            log ('Classe: ' + str(cl))
+    return (rotulos_ts, rotulos_pred)
+   
+   
+'''
+Executa classificacao da base de testes utilizando uma base de treino
+de imagens que foram diviidas em 4**n patches
+'''    
+def executa_classificacao_n(base_teste, base_treino, n=1):
+    inicio1 = time()    
+    
+    tamanhos = []
+    taxas = []
+    matrizes = []
+    tempos = []
+    c = "svm" 
+    
+    try:
+        for lado in range(8,n+1,4):
+            # Carrega a base de treinamento         
+            base_tr = base_treino + "base_PFTAS_"+str(lado)+"x"+str(lado)+".svm"
+            atrib_tr = None
+            rotulos_tr = None    
+            atrib_tr, rotulos_tr = load_svmlight_file(base_tr)
+            
+            # Classifica a base de testes            
+            inicio = time()           
+            log("Classificando para " + c + " usando patches de "+str(lado)+"x"+str(lado))
+                    
+            r_tst,r_pred = classifica_n(base_teste, atrib_tr, rotulos_tr, c, lado)
+            
+            # cria as matrizes de confusao
+            cm = confusion_matrix(r_tst, r_pred)            
+            
+            # exibe a taxa de classificacao
+            r_pred = np.asarray(r_pred)
+            r_tst = np.asarray(r_tst)
+            taxa_clf = np.mean(r_pred.ravel() == r_tst.ravel()) * 100            
+            
+            # armazena os resultados 
+            tamanhos.append(lado) 
+            taxas.append(taxa_clf) 
+            matrizes.append(cm) 
+            tempos.append(time()-inicio) 
+            inicio = exibe_tempo(inicio, "CLASSIFICACAO") 
+        
+    except FileNotFoundError as fnf:
+        log("I/O error({0}): {1}".format(fnf.errno, fnf.strerror))
+    except TypeError as te:
+        log("Type Error({0}): {1}".format(te.errno, te.strerror))
+    except:
+        log("ERRO ou PROBLEMA desconhecido no processo de classificação.") 
+        print ("Unexpected error:", sys.exc_info()[0])
+        raise           
+        
+    # Exibe o tempo de execução    
+    log("Tempo: " + str(time()-inicio1) + " CLASSIFICACAO para " + str(4**n) + " patches")     
+    
+    ## FIM DO PROCESSO DE CLASSIFICACAO
+    
+    # exibe os dados obtidos
+    for t,tx,mc in zip(tamanhos,taxas,matrizes):
+        log("\nTamanho: " + str(t) + " Taxa Reconhecimento: " + str(tx))        
+        log("Matriz de Confusão: \n" + str(mc))        
+        
+     # plota grafico de resultados [reconhecimento vs tam. patch]
+    arq_grafico = base_treino + "PFTAS_"+str(lado)+"x"+str(lado)+".pdf"
+    plota_grafico(tamanhos, taxas, arq_grafico, tituloX="Tam. Patch", tituloY="Tx. Reconhecimento")
+    
+    arq_grafico_tempo = base_treino + 'Tempos_" +str(lado)+"x"+str(lado)+".pdf"
+    plota_grafico(tamanhos, tempos, arq_grafico_tempo, tituloX="Num. Patches", tituloY="Tempo")
+
+    
+    
+'''
+Executa o procedimento de classificacao
+Trabalha com o esquema de divisões sucessivas, efetuando a classificação
+para cada conjunto de patches gerados por cada nivel das divisões efetudas
+'''    
 def executa_classificacao(base_teste, base_treino, total_n=5):
     inicio1 = time()    
     
@@ -504,80 +670,6 @@ def executa_classificacao(base_teste, base_treino, total_n=5):
     arq_grafico_tempo = base_treino + 'Tempos_'+str(n)+'_divs.pdf'
     plota_grafico(tamanhos, tempos, arq_grafico_tempo, tituloX="Num. Patches", tituloY="Tempo")
 
-'''
-Executa classificacao da base de testes utilizando uma base de treino
-de imagens que foram diviidas em 4**n patches
-'''    
-def executa_classificacao_n(base_teste, base_treino, n=1):
-    inicio1 = time()    
-    
-    tamanhos = []
-    taxas = []
-    matrizes = []
-    tempos = []
-    classfs = ["svm"] #"dt", 
-    
-    try:
-        # Carrega a base de treinamento         
-        base_tr = base_treino + "base_PFTAS_"+str(n)+"_divs.svm"        
-        atrib_tr = None
-        rotulos_tr = None    
-        atrib_tr, rotulos_tr = load_svmlight_file(base_tr)
-        
-        # Classifica a base de testes
-        for c in classfs:
-            inicio = time()           
-            log("Classificando para " + c + " com " + str(4**n) + " patches")
-                    
-            r_tst,r_pred = classifica(base_teste, atrib_tr, rotulos_tr, c, n)
-            
-            # cria as matrizes de confusao
-            cm = confusion_matrix(r_tst, r_pred)
-            print("Matriz de confusao: ")
-            print (cm) 
-            
-            # exibe a taxa de classificacao
-            r_pred = np.asarray(r_pred)
-            r_tst = np.asarray(r_tst)
-            taxa_clf = np.mean(r_pred.ravel() == r_tst.ravel()) * 100
-            print("Taxa de Classificação: %f " % (taxa_clf))     
-            
-            # armazena os resultados 
-            tamanhos.append(4**n) 
-            taxas.append(taxa_clf) 
-            matrizes.append(cm) 
-            tempos.append(time()-inicio) 
-            inicio = exibe_tempo(inicio, "CLASSIFICACAO") 
-    except FileNotFoundError as fnf:
-        log("I/O error({0}): {1}".format(fnf.errno, fnf.strerror))
-    except TypeError as te:
-        log("Type Error({0}): {1}".format(te.errno, te.strerror))
-    except:
-        log("ERRO ou PROBLEMA desconhecido no processo de classificação.") 
-        print ("Unexpected error:", sys.exc_info()[0])
-        raise           
-        
-    # Exibe o tempo de execução    
-    log("Tempo: " + str(time()-inicio1) + " CLASSIFICACAO para " + str(4**n) + " patches")     
-    
-    ## FIM DO PROCESSO DE CLASSIFICACAO
-    
-    # exibe os dados obtidos
-    for t,tx,mc in zip(tamanhos,taxas,matrizes):
-        log("\nTamanho: " + str(t) + " Taxa Reconhecimento: " + str(tx))        
-        log("Matriz de Confusão: \n" + str(mc))        
-        
-     # plota grafico de resultados [reconhecimento vs tam. patch]
-    arq_grafico = base_treino + 'base_PFTAS_'+str(n)+'_divs.pdf'
-    plota_grafico(tamanhos, taxas, arq_grafico, tituloX="Num. Patches", tituloY="Tx. Reconhecimento")
-    
-    arq_grafico_tempo = base_treino + 'Tempos_'+str(n)+'_divs.pdf'
-    plota_grafico(tamanhos, tempos, arq_grafico_tempo, tituloX="Num. Patches", tituloY="Tempo")
-
-
-def trata_excecao(excecao):    
-    log("I/O error({0}): {1}".format(excecao.errno, excecao.strerror))    
-    raise    
 
 '''
 Executa classificacao da base de testes utilizando uma base de treino
@@ -680,7 +772,8 @@ def plota_grafico(dadosX, dadosY, arquivo="grafico.pdf", titulo="", tituloX="X",
 
 ###############################################################################
 
-def main():
+def main():    
+
     inicio = time()
     
     parser = OptionParser()
@@ -746,7 +839,9 @@ def main():
    # Encerramento e contagem de tempo de execucao 
     print("ENCERRAMENTO DO PROGRAMA \n\n")     
     logfile.close() 
-    
+
+
+   
 # Programa principal 
 if __name__ == "__main__":	
 	main()
